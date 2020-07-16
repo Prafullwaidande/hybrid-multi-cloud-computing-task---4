@@ -1,197 +1,195 @@
-#provider
 provider "aws" {
-region = "ap-south-1"
-profile = "Prafull"
+  region   = "ap-south-1"
+  profile  = "task"
 }
 
-#vpc 
-resource "aws_vpc" "ppsvpc" {
+#Creating_VPC
+
+resource "aws_vpc" "myvpc" {
   cidr_block       = "192.168.0.0/16"
   instance_tenancy = "default"
+  enable_dns_hostnames  = true
 
   tags = {
-    Name = "ppsvpc"
+    Name = "prafull-vpc"
   }
 }
 
-#public subnet 
-resource "aws_subnet" "ppspublic" {
-  vpc_id     = "${aws_vpc.ppsvpc.id}"
-  cidr_block = "192.168.0.0/24"
-  availability_zone = "ap-south-1a"
-  tags = {
-    Name = "ppspublic"
-  }
-}
+#SUBNET_PRIVATE
 
-#private subnet
-resource "aws_subnet" "ppsprivate" {
-  vpc_id     = "${aws_vpc.ppsvpc.id}"
+resource "aws_subnet" "private" {
+  vpc_id     = "${aws_vpc.myvpc.id}"
   cidr_block = "192.168.1.0/24"
   availability_zone = "ap-south-1b"
+
   tags = {
-    Name = "ppsprivate"
+    Name = "private-subnet"
+  }
+}
+#SUBNET_PUBLIC
+
+resource "aws_subnet" "public" {
+  vpc_id     = "${aws_vpc.myvpc.id}"
+  cidr_block = "192.168.0.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "public-subnet"
   }
 }
 
-#internet gate way
-resource "aws_internet_gateway" "ppsgw" {
-  vpc_id = "${aws_vpc.ppsvpc.id}"
+#INTERNETGATEWAY
+
+resource "aws_internet_gateway" "gw" {
+  vpc_id = "${aws_vpc.myvpc.id}"
 
   tags = {
-    Name = "ppsgw"
+    Name = "internet-gateway"
   }
 }
 
-#creating NAT getway
-resource "aws_eip" "ppseip" {
-  vpc = true
-}
+#ROUTETABLE
 
-resource "aws_nat_getway" "ppsnatg" {
-  allocation_id = aws_epi.ppseip.id
-  subnet_id = aws_subnet.ppspublic.id
-  depends_on = [aws_internet_getway.pps.gw]
-  
-  tags = {
-   Name = "ppsnatg"
- }
-}
-
-#aws router 
-resource "aws_route_table" "ppspublictable" {
-  vpc_id = aws_vpc.ppsvpc.id
-
+resource "aws_route_table" "internetgateway" {
+  vpc_id = "${aws_vpc.myvpc.id}"
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.ppsgw.id
+    gateway_id = "${aws_internet_gateway.gw.id}"
   }
 
+ 
+  tags = {
+    Name = "route-table"
+  }
+}
+resource "aws_route_table_association" "asstopublic" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.internetgateway.id
+}
+
+resource "aws_eip" "nat" {
+  vpc=true
+  
+}
+resource "aws_nat_gateway" "nat-gw" {
+  allocation_id = "${aws_eip.nat.id}"
+  subnet_id     = "${aws_subnet.public.id}"
+  depends_on = [aws_internet_gateway.gw]
 
   tags = {
-    Name = "ppstable"
+    Name = "net-gateway"
   }
 }
-resource "aws_route_table_association" "rta_subnet_public" {
-  subnet_id      = aws_subnet.ppspublic.id
-  route_table_id = aws_route_table.ppstable.id
+resource "aws_route_table" "private" {
+  vpc_id = "${aws_vpc.myvpc.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = "${aws_nat_gateway.nat-gw.id}"
+  }
+
+ 
+
+  tags = {
+    Name = "database"
+  }
+}
+resource "aws_route_table_association" "nat" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
 }
 
-resource "aws_security_group" "ppsSGwp" {
-  name        = "My Wordpress Security Group"
-  description = "HTTP , SSH , ICMP"
-  vpc_id      =  "${aws_vpc.ppsvpc.id}"
+#WEBSERVER_SECURITYGROUP
 
+resource "aws_security_group" "webserver" {
+  name        = "for_wordpress"
+  description = "Allow hhtp"
+  vpc_id      = "${aws_vpc.myvpc.id}"
 
   ingress {
-    description = "HTTP Port"
+    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
+  } 
+
   ingress {
-    description = "SSH Port"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
- ingress {
-    description = "MYSQL Port"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  } 
+  
+
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks =  ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
-  
+
   tags = {
-    Name = "ppssecuritygroup"
+    Name = "securitygroup"
   }
 }
+#securitygroup_FOR_DATABASE
 
-resource "aws_route_table" "ppsprivatetable" {
-  vpc_id = aws_vpc.ppsvpc.id
-  route {
-     cidr_block = "0.0.0.0/0"
-     nat_gateway_id = aws_nat_gateway.ppseip.id
-  }
-  tags = {
-    Name = "ppsprivatetable"
- }
-}
+resource "aws_security_group" "database" {
+  name        = "for_MYSQL"
+  description = "Allow MYSQL"
+  vpc_id      = "${aws_vpc.myvpc.id}"
 
-resource "aws_route_table_association" "rta_subnet_private" {
-   subnet_id = aws_subnet.ppsprivate.id
-   route_table_id = aws_route_table.ppsprivatetable.id
-  }
-
-
-resource "aws_security_group" "ppsSGmysql" {
-  name = "My MYSQL Security Group"
-  description = "MYSQL Security Group"
-  vpc_id = "${aws_vpc.ppsvpc.id}"
- 
- ingress {
-    protocol        = "tcp"
-    from_port       = 3306
-    to_port         = 3306
-    security_groups = [aws_security_group.ppsSGwp.id]
+  ingress {
+    description = "MYSQL"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    security_groups = [aws_security_group.webserver.id]
+   
   }
 
-
- egress {
+  egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags ={
-    
-    Name= "ppsmysql"
+
+  tags = {
+    Name = "securitygourp"
   }
 }
 
+#MYSQL_IMAGE
 
-#creating key variable
-variable "enter_ur_key_name" {
-type = string
-default = "mykey"
+resource "aws_instance" "mysql" {
+  ami           = "ami-0019ac6129392a0f2"
+  instance_type = "t2.micro"
+  subnet_id = aws_subnet.private.id
+  vpc_security_group_ids = [aws_security_group.database.id]
+  key_name = "akash"
+  
+
+ tags = {
+    Name = "mysql-prafull"
+  }
+
 }
 
-#launcing wordpress AMI 
-resource "aws_instance" "ppswp" {
+#WORDPRESS_IMAGE
+
+resource "aws_instance" "wordpress" {
   ami           = "ami-000cbce3e1b899ebd"
   instance_type = "t2.micro"
   associate_public_ip_address = true
-  subnet_id = aws_subnet.ppspublic.id
-  vpc_security_group_ids = [aws_security_group.ppsSGwp.id]
-  key_name = var.enter_ur_key_name
-  availability_zone = "ap-south-1a"
-
+  subnet_id = aws_subnet.public.id
+  key_name = "akash"
+  vpc_security_group_ids = [aws_security_group.webserver.id]
 
   tags = {
-    Name = "ppswp"
-  }
-}
-
-#launching mysql AMI
-resource "aws_instance" "ppsmysql" {
-  ami           = "ami-08706cb5f68222d09"
-  instance_type = "t2.micro"
-  subnet_id = "${aws_subnet.ppsprivate.id}"
-  vpc_security_group_ids = [aws_security_group.ppsSGmysql.id]
-  key_name = var.enter_ur_key_name
-  availability_zone = "ap-south-1b"
- tags ={
-    
-    Name= "ppsmysql"
+    Name = "wordpress-prafull"
   }
 }
