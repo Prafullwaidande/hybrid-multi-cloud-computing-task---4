@@ -3,6 +3,100 @@ provider "aws" {
   profile  = "task"
 }
 
+#MYSQL_IMAGE
+
+resource "aws_instance" "mysql" {
+  ami           = "ami-0019ac6129392a0f2"
+  instance_type = "t2.micro"
+  subnet_id = aws_subnet.private.id
+  vpc_security_group_ids = [aws_security_group.database.id]
+  key_name = "akash"
+  
+
+ tags = {
+    Name = "mysql-prafull"
+  }
+
+}
+
+#WORDPRESS_IMAGE
+
+resource "aws_instance" "wordpress" {
+  ami           = "ami-000cbce3e1b899ebd"
+  instance_type = "t2.micro"
+  associate_public_ip_address = true
+  subnet_id = aws_subnet.public.id
+  key_name = "akash"
+  vpc_security_group_ids = [aws_security_group.webserver.id]
+
+  tags = {
+    Name = "wordpress-prafull"
+  }
+}
+
+#WEBSERVER_SECURITYGROUP
+
+resource "aws_security_group" "webserver" {
+  name        = "for_wordpress"
+  description = "Allow hhtp"
+  vpc_id      = "${aws_vpc.myvpc.id}"
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  } 
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  } 
+  
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "securitygroup"
+  }
+}
+#securitygroup_FOR_DATABASE
+
+resource "aws_security_group" "database" {
+  name        = "for_MYSQL"
+  description = "Allow MYSQL"
+  vpc_id      = "${aws_vpc.myvpc.id}"
+
+  ingress {
+    description = "MYSQL"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    security_groups = [aws_security_group.webserver.id]
+   
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "securitygourp"
+  }
+}
+
 #Creating_VPC
 
 resource "aws_vpc" "myvpc" {
@@ -100,96 +194,5 @@ resource "aws_route_table_association" "nat" {
   route_table_id = aws_route_table.private.id
 }
 
-#WEBSERVER_SECURITYGROUP
 
-resource "aws_security_group" "webserver" {
-  name        = "for_wordpress"
-  description = "Allow hhtp"
-  vpc_id      = "${aws_vpc.myvpc.id}"
 
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  } 
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  } 
-  
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "securitygroup"
-  }
-}
-#securitygroup_FOR_DATABASE
-
-resource "aws_security_group" "database" {
-  name        = "for_MYSQL"
-  description = "Allow MYSQL"
-  vpc_id      = "${aws_vpc.myvpc.id}"
-
-  ingress {
-    description = "MYSQL"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    security_groups = [aws_security_group.webserver.id]
-   
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "securitygourp"
-  }
-}
-
-#MYSQL_IMAGE
-
-resource "aws_instance" "mysql" {
-  ami           = "ami-0019ac6129392a0f2"
-  instance_type = "t2.micro"
-  subnet_id = aws_subnet.private.id
-  vpc_security_group_ids = [aws_security_group.database.id]
-  key_name = "akash"
-  
-
- tags = {
-    Name = "mysql-prafull"
-  }
-
-}
-
-#WORDPRESS_IMAGE
-
-resource "aws_instance" "wordpress" {
-  ami           = "ami-000cbce3e1b899ebd"
-  instance_type = "t2.micro"
-  associate_public_ip_address = true
-  subnet_id = aws_subnet.public.id
-  key_name = "akash"
-  vpc_security_group_ids = [aws_security_group.webserver.id]
-
-  tags = {
-    Name = "wordpress-prafull"
-  }
-}
